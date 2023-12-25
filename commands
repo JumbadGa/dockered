@@ -1,0 +1,23 @@
+#!/bin/bash
+
+docker build -t spark-image:v2 .
+docker scout quickview # View summary of image vulnerabilities and recommendations
+docker scout cves spark-image:v2 # Learn more about vulnerabilities
+docker scout recommendations spark-image:v2 # Learn more about base image update recommendations
+
+
+docker ps -a
+docker stop container_id
+docker rm container_id
+docker rmi image_name:tag
+docker logs container_id
+docker exec -it container_id /bin/bash
+docker pull image_name:tag
+docker push image_name:tag
+docker rm $(docker ps -a -q) # Remove all containers
+docker rmi $(docker images -q) # Remove all images
+
+
+docker system prune # To remove all unused Docker resources, including caches,
+docker system prune -f 
+docker builder prune # This removes all build cache. Note that this is only relevant if you are actively building Docker images frequently.
