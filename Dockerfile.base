@@ -1,0 +1,60 @@
+# Use Ubuntu as the base image
+FROM ubuntu:latest
+USER root
+# Set environment variables
+ENV HADOOP_VERSION=3.3.6
+ENV SPARK_VERSION=3.5.0
+ENV HDFS_NAMENODE_USER=root
+ENV HDFS_DATANODE_USER=root
+ENV HDFS_SECONDARYNAMENODE_USER=root
+ENV YARN_RESOURCEMANAGER_USER=root
+ENV YARN_NODEMANAGER_USER=root
+ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+ENV HADOOP_HOME=/usr/lib/hadoop
+ENV SPARK_HOME=/usr/lib/spark
+ENV PATH=${PATH}:${JAVA_HOME}/bin:${HADOOP_HOME}/bin:${SPARK_HOME}/bin
+
+# Install OpenJDK
+RUN apt-get update && \
+    apt-get install -y wget ssh openjdk-11-jdk && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa && \
+    cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys && \
+    chmod 0600 ~/.ssh/authorized_keys
+
+# Install Hadoop & Spark
+# RUN wget -O - https://downloads.apache.org/hadoop/common/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz | tar -xz -C /opt/ && \
+#     cd /opt && mkdir -p ${HADOOP_HOME} && \
+#     mv hadoop-${HADOOP_VERSION} ${HADOOP_HOME} && \
+#     rm -rf hadoop-${HADOOP_VERSION}
+# RUN wget -O - https://downloads.apache.org/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz | tar -xz -C /opt/ && \
+#     cd /opt && mkdir -p ${SPARK_HOME} && \
+#     mv spark-${SPARK_VERSION}-bin-hadoop3 ${SPARK_HOME} && \
+#     rm -rf spark-${SPARK_VERSION}-bin-hadoop3
+
+# Copy specific tar and tgz files into the same destination directory
+COPY hadoop-${HADOOP_VERSION}.tar.gz /opt/
+COPY spark-${SPARK_VERSION}-bin-without-hadoop.tgz /opt
+# Unpack Hadoop tar file
+RUN tar -xzf /opt/hadoop-${HADOOP_VERSION}.tar.gz -C /opt/ \
+    && mv /opt/hadoop-${HADOOP_VERSION} ${HADOOP_HOME} \
+    && rm -f /opt/hadoop-${HADOOP_VERSION}.tar.gz
+
+RUN tar -xzf /opt/spark-${SPARK_VERSION}-bin-without-hadoop.tgz -C /opt/ \
+    && mv /opt/spark-${SPARK_VERSION}-bin-without-hadoop ${SPARK_HOME} \
+    && rm -f /opt/spark-${SPARK_VERSION}-bin-without-hadoop.tar.gz
+
+# Format HDFS (only needed the first time)
+# Set JAVA_HOME in hadoop-env.sh and spark-env.sh
+RUN echo "export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64" >> ${HADOOP_HOME}/etc/hadoop/hadoop-env.sh
+RUN echo "export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64" >> ${SPARK_HOME}/conf/spark-env.sh
+RUN echo "export SPARK_DIST_CLASSPATH=${HADOOP_HOME}/bin/hadoop" >> ${SPARK_HOME}/conf/spark-env.sh
+RUN mkdir -p ${HADOOP_HOME}/hdfs/tmp && chmod -R 777 ${HADOOP_HOME}/hdfs/tmp
+RUN ${HADOOP_HOME}/bin/hdfs namenode -format
+
+# Expose Hadoop and Spark ports
+EXPOSE 9870 8080 8081
+
+# Start Hadoop and Spark services
+CMD service ssh start && ${HADOOP_HOME}/sbin/start-all.sh && ${SPARK_HOME}/sbin/start-all.sh && bash
